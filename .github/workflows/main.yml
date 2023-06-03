@@ -1,0 +1,78 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 19 * * *'
+  watch:
+    types: [started]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Clone
+        uses: actions/checkout@v3
+        with:
+          repository: StevenBlack/hosts
+          path: hosts
+      - name: Add 
+        run: |
+          iwr -useb -Uri "https://raw.githubusercontent.com/yvche/gh/main/hosts" -o hosts/myhosts
+          cp blacklist hosts/
+          mv build hosts/
+          mv Brave hosts/data/
+          mv WindowsSpyBlocker.extra hosts/data/
+          mv WindowsSpyBlocker.spy hosts/data/
+          mv WindowsSpyBlocker.update hosts/data/
+          mv yhosts hosts/data/
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+          cache: pip
+
+      - name: Install Python dependencies
+        working-directory: hosts
+        run: pip install -r requirements.txt
+
+      - name: Run lint
+        working-directory: hosts
+        run: flake8
+
+      - name: Run makeHosts.py
+        working-directory: hosts
+        run: python makeHosts.py
+
+      - name: Run tests
+        working-directory: hosts
+        run: python testUpdateHostsFile.py
+
+      - name: Run Update
+        working-directory: hosts
+        run: python updateHostsFile.py -a -e fakenews gambling social -m -x blacklist -o build
+
+      - name: pull
+        working-directory: hosts
+        run: |
+          mv build ../  
+          mv data/Brave ../
+          mv data/WindowsSpyBlocker.extra ../
+          mv data/WindowsSpyBlocker.spy ../
+          mv data/WindowsSpyBlocker.update ../
+          mv data/yhosts ../
+     
+      - name: push
+        run: |
+          git config user.name "yvche"
+          git config user.email "135419997+yvche@users.noreply.github.com"
+          git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git add .
+          git commit -m "$(date "+%Y%m%d-%H%M")"
+          git push
